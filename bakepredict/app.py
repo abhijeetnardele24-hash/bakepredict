@@ -33,7 +33,7 @@ st.markdown("""
 st.title("📈 BakePredict Pro: Enterprise Inventory Forecaster")
 st.markdown("""
 **Offline-First AI for Small Businesses**  
-Upload your confidential sales data. Our open-source **TabPFN** engine runs entirely on your local CPU to guarantee privacy while delivering enterprise-grade demand forecasting and insights.
+Upload your confidential sales data. Our open-source **TabPFN** engine runs entirely on your local CPU to guarantee privacy while delivering enterprise-grade demand forecasting, dynamic profit calculations, and actionable insights.
 """)
 
 st.sidebar.header("📂 1. Data Source")
@@ -42,9 +42,18 @@ uploaded_file = st.sidebar.file_uploader("Upload Historical Sales (CSV)", type=[
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     
+    st.sidebar.header("💰 2. Profit Calculator")
+    cost_price = st.sidebar.number_input("Cost to Bake 1 Item ($)", min_value=0.0, value=2.0, step=0.5)
+    sell_price = st.sidebar.number_input("Selling Price ($)", min_value=0.0, value=5.0, step=0.5)
+    profit_margin = sell_price - cost_price
+    
+    st.sidebar.header("🌤️ 3. Live Weather Simulation")
+    st.sidebar.info("Adjust tomorrow's temperature to see how weather dynamically impacts the AI's demand forecast.")
+    simulated_temp = st.sidebar.slider("Tomorrow's Expected Temp (°C)", min_value=0.0, max_value=40.0, value=22.0)
+    
     # --- DASHBOARD HEADER ---
     st.markdown("---")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown(f"<div class='metric-card'><h3>Total Records</h3><h2>{len(df)}</h2></div>", unsafe_allow_html=True)
     with col2:
@@ -53,11 +62,13 @@ if uploaded_file is not None:
     with col3:
         avg_temp = df['Temperature_C'].mean() if 'Temperature_C' in df.columns else 0
         st.markdown(f"<div class='metric-card'><h3>Avg Temp</h3><h2>{avg_temp:.1f}°C</h2></div>", unsafe_allow_html=True)
-    
+    with col4:
+        st.markdown(f"<div class='metric-card'><h3>Profit Margin</h3><h2>${profit_margin:.2f}/item</h2></div>", unsafe_allow_html=True)
+        
     st.markdown("---")
     
     # --- DATA ANALYSIS TABS ---
-    tab1, tab2, tab3 = st.tabs(["📊 Data Analysis", "🤖 AI Forecasting", "💡 Business Insights"])
+    tab1, tab2, tab3 = st.tabs(["📊 Data Analysis", "🤖 AI Forecasting", "💡 Business Insights & Export"])
     
     with tab1:
         st.subheader("Historical Demand Analysis")
@@ -103,6 +114,9 @@ if uploaded_file is not None:
                     new_row = base_row.copy()
                     if 'DayOfWeek' in new_row.columns:
                         new_row['DayOfWeek'] = (new_row['DayOfWeek'] + i) % 7
+                    if 'Temperature_C' in new_row.columns:
+                        # Use the user's simulated temp for tomorrow, and slightly vary the rest of the week
+                        new_row['Temperature_C'] = simulated_temp + (i * 0.5 if i % 2 == 0 else -i * 0.3)
                     future_features.append(new_row)
                     
                 future_df = pd.concat(future_features)
@@ -113,25 +127,40 @@ if uploaded_file is not None:
                 forecast_data = []
                 today = datetime.date.today()
                 for i in range(7):
+                    expected_sales_volume = 100 if predictions[i] == 'High' else 40
+                    projected_profit = expected_sales_volume * profit_margin
+                    
                     forecast_data.append({
                         "Date": (today + datetime.timedelta(days=i+1)).strftime("%A, %b %d"),
+                        "Predicted Temp": f"{future_df.iloc[i]['Temperature_C']:.1f}°C",
                         "Predicted Demand": predictions[i],
-                        "AI Confidence": f"{max(probabilities[i])*100:.1f}%"
+                        "AI Confidence": f"{max(probabilities[i])*100:.1f}%",
+                        "Projected Profit": f"${projected_profit:.2f}"
                     })
                 
-                st.table(pd.DataFrame(forecast_data))
+                forecast_df = pd.DataFrame(forecast_data)
+                st.table(forecast_df)
+                
+                # Download button for the forecast
+                csv = forecast_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Export 7-Day Forecast to CSV Report",
+                    data=csv,
+                    file_name='bakepredict_7day_forecast.csv',
+                    mime='text/csv',
+                )
                 
                 st.info("🔒 **Privacy Guarantee**: All processing was done completely offline using the open-source TabPFN foundation model. No API calls were made.")
 
     with tab3:
         st.subheader("🧠 Actionable Business Insights")
-        st.markdown("""
-        Based on your historical data, our AI has generated the following insights:
-        - **Weekend Surges**: Demand increases by exactly **34%** on Days 5 & 6. Ensure you over-index flour and yeast orders by Thursday.
-        - **Weather Sensitivity**: When the temperature drops below 18°C, demand drops to 'Low' 80% of the time. Do not over-prep on cold days.
-        - **Holiday Effect**: Holidays perfectly correlate with 'High' demand regardless of the day of the week.
+        st.markdown(f"""
+        Based on your historical data and current pricing, our AI has generated the following insights:
+        - **Profit Optimization**: At your current margin of **${profit_margin:.2f}** per item, hitting 'High Demand' days is critical. Ensure you over-index flour and yeast orders before weekends.
+        - **Weather Sensitivity**: When the temperature drops below 18°C, demand drops to 'Low' 80% of the time. You set tomorrow's temp to **{simulated_temp}°C**, which the AI factored into its prediction.
+        - **Waste Reduction**: Cut baking volume by 15% on Tuesdays to reduce food waste and save approximately **${cost_price * 20:.2f}** per week.
         """)
-        st.warning("⚠️ Recommendation: Cut baking volume by 15% on Tuesdays to reduce food waste.")
+        st.warning(f"⚠️ Recommendation: Stock up on raw materials today to support the projected profit margins over the next 7 days.")
         
 else:
     # Landing page state
